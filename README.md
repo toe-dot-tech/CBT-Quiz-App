@@ -1,41 +1,64 @@
-# CBT Quiz App
+# CBT Quiz App - Flutter
 
-## Project Documentation
+A Computer-Based Testing (CBT) Quiz Application built with Flutter. This is a client-server architecture where one main device runs as a server (providing `.exe` for Windows) and other devices on the same LAN/WiFi network connect as clients to take quizzes.
+
+## 📋 Project Overview
 
 ### Architecture
-The CBT Quiz App is built using a client-server architecture where the client-side is developed using React, and the server-side is powered by Node.js and Express. The application interacts with a MongoDB database for data storage and retrieval.
+```
+┌─────────────────────────────────────────────┐
+│         SERVER (Main Device)                 │
+│  ┌──────────────────────────────────────┐   │
+│  │  Flutter App with Dart Server        │   │
+│  ├──────────────────────────────────────┤   │
+│  │  - HTTP Server (port 8080)           │   │
+│  │  - SQLite Database                   │   │
+│  │  - Quiz Management                   │   │
+│  │  - Student Management                │   │
+│  │  - Results & Analytics               │   │
+│  └──────────────────────────────────────┘   │
+└─────────────────────────────────────────────┘
+           ↕ (HTTP Communication)
+┌──────────────────────────────────────────────┐
+│    CLIENTS (Student Devices on LAN)          │
+│  ┌────────────────┐  ┌────────────────┐     │
+│  │ Flutter Client │  │ Flutter Client │ ... │
+│  ├────────────────┤  ├────────────────┤     │
+│  │ Login Screen   │  │ Login Screen   │     │
+│  │ Quiz Interface │  │ Quiz Interface │     │
+│  │ Results View   │  │ Results View   │     │
+│  └────────────────┘  └────────────────┘     │
+└──────────────────────────────────────────────┘
+```
 
-### Features
-- **User Authentication:** Secure login and registration for users.
-- **Quiz Management:** Create, update, and delete quiz questions and options.
-- **Real-time Scoring:** Instant scoring after quiz submission to provide feedback.
-- **Responsive Design:** Works seamlessly on various screen sizes.
-- **Analytics:** Insights into user performance and quiz statistics.
+### Technology Stack
+- **Framework:** Flutter (Dart)
+- **State Management:** Riverpod (Provider pattern)
+- **Navigation:** GoRouter (type-safe routing)
+- **Database:** SQLite (local storage)
+- **Networking:** HTTP + Socket.io (real-time communication)
+- **Server:** Shelf Framework (Dart-based HTTP server)
 
-### Setup Instructions
-1. **Clone the Repository**  
-   `git clone https://github.com/toe-dot-tech/CBT-Quiz-App.git`
+## 🎯 Core Features
 
-2. **Navigate to Project Directory**  
-   `cd CBT-Quiz-App`
+### Server Features
+1. **Quiz Management** - Create, edit, delete quizzes and manage questions
+2. **Student Management** - Register and enroll students
+3. **Testing & Monitoring** - Monitor live student progress in real-time
+4. **Results & Analytics** - View scores, export results, analyze performance
 
-3. **Install Dependencies**  
-   For the client:  
-   `cd client && npm install`  
-   For the server:  
-   `cd server && npm install`
+### Client Features
+1. **Authentication** - Login with matriculation number and surname
+2. **Quiz Interface** - Clean interface with timer and navigation
+3. **Offline Resilience** - Cache answers locally and sync when reconnected
+4. **User Experience** - Results display and score breakdown
 
-4. **Set Up Environment Variables**  
-   Create a `.env` file in both `client` and `server` directories and add the required environment variables as per the `.env.example` files.
+## 📁 Project Structure
+The project follows a modular architecture with clear separation of concerns including lib/main.dart, config/, models/, services/, providers/, screens/, widgets/, utils/, and assets/
 
-5. **Run the Application**  
-   Start the server:  
-   `cd server && npm start`  
-   Start the client:  
-   `cd client && npm start`
+## 🚀 Getting Started
+Prerequisites: Flutter SDK v3.0+, Dart SDK, Git
+Installation: Clone repo, run flutter pub get, then flutter run
 
-### Usage Guide
-- Navigate to `http://localhost:3000` in your browser to access the application.
-- Log in with your credentials to access user-specific features.
-- Use the dashboard to manage quiz content and view analytics.
-- Participate in quizzes and check scores immediately after submissions.
+## 📞 Support
+For issues or questions, please open an issue on GitHub.
