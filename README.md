@@ -1,4 +1,4 @@
-# CBT Quiz App - Flutter
+# CBT Quiz Software
 
 A Computer-Based Testing (CBT) Quiz Application built with Flutter. This is a client-server architecture where one main device runs as a server (providing `.exe` for Windows) and other devices on the same LAN/WiFi network connect as clients to take quizzes.
 
