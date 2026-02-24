@@ -139,21 +139,41 @@ class QuizServer {
     String surname,
   ) async {
     final file = File('registered_students.csv');
-    if (!await file.exists()) return null;
+    if (!await file.exists()) {
+      print("Server Error: registered_students.csv not found!");
+      return null;
+    }
 
-    final input = file.openRead();
-    final fields = await input
-        .transform(utf8.decoder)
-        .transform(const CsvToListConverter())
-        .toList();
+    try {
+      final csvString = await file.readAsString();
+      final List<List<dynamic>> rows = const CsvToListConverter().convert(
+        csvString,
+      );
 
-    for (var row in fields) {
-      if (row.length >= 3) {
-        if (row[0].toString().trim().toUpperCase() == matric &&
-            row[1].toString().trim().toUpperCase() == surname) {
-          return {'firstName': row[2].toString().trim()};
+      for (var row in rows) {
+        if (row.isEmpty) continue;
+
+        // Skip the header row if it exists
+        if (row[0].toString().toLowerCase().contains('matric')) continue;
+
+        // Clean the data from the CSV
+        String csvMatric = row[0].toString().trim().toUpperCase();
+        String csvSurname = row.length > 1
+            ? row[1].toString().trim().toUpperCase()
+            : "";
+        String firstName = row.length > 2
+            ? row[2].toString().trim()
+            : "Student";
+
+        // Debugging: This will show in your terminal exactly what is being compared
+        print("Checking CSV: '$csvMatric' vs Input: '$matric'");
+
+        if (csvMatric == matric && csvSurname == surname) {
+          return {'firstName': firstName};
         }
       }
+    } catch (e) {
+      print("Error reading student CSV: $e");
     }
     return null;
   }

@@ -20,10 +20,12 @@ class _AdminViewState extends State<AdminView> {
   String ip = "Offline";
 
   // Stats variables
+
   int passedCount = 0;
   int failedCount = 0;
   String avgScore = "0%";
   Timer? _refreshTimer;
+  String _submissionStatus = "0 / 0";
 
   // Data Lists
   List<List<dynamic>> _registeredData = [];
@@ -69,14 +71,28 @@ class _AdminViewState extends State<AdminView> {
   }
 
   // --- LOGIC: STATS & DATA ---
-
   Future<void> _loadStats() async {
     final stats = await ResultStorageService().calculateLiveStats();
+
+    final resultsFile = File('quiz_results.csv');
+    int finishedCount = 0;
+    if (await resultsFile.exists()) {
+      final lines = await resultsFile.readAsLines();
+      finishedCount = lines.length > 1 ? lines.length - 1 : 0;
+    }
+
+    // Calculate the total registered (excluding header)
+    int regCount = _registeredData
+        .where((r) => r.isNotEmpty && r[0].toString().toLowerCase() != 'matric')
+        .length;
+
     if (mounted) {
       setState(() {
         passedCount = stats.passed;
         failedCount = stats.failed;
-        avgScore = "${(stats.avgScore * 100).toStringAsFixed(1)}%";
+        // This line will no longer throw an error!
+        _submissionStatus = "$finishedCount / $regCount";
+        avgScore = "${stats.avgScore.toStringAsFixed(1)}%";
       });
     }
   }
@@ -252,7 +268,35 @@ class _AdminViewState extends State<AdminView> {
     );
   }
 
-  // --- UI: COMPONENTS ---
+  Future<void> _importRegistry() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+
+    if (result != null && result.files.single.path != null) {
+      final file = File(result.files.single.path!);
+      final csvString = await file.readAsString();
+
+      // Save it locally so the QuizServer can find it
+      final localFile = File('registered_students.csv');
+      await localFile.writeAsString(csvString);
+
+      setState(() {
+        _registeredData = const CsvToListConverter().convert(csvString);
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Student Registry Updated Successfully!"),
+          ),
+        );
+      }
+    }
+  }
+
+  //* --- UI: COMPONENTS ---
 
   Widget _statCard(String title, String val, IconData icon, Color color) {
     return Container(
@@ -312,20 +356,20 @@ class _AdminViewState extends State<AdminView> {
               PieChartData(
                 sections: [
                   PieChartSectionData(
-                    value:
-                        passedCount.toDouble() == 0 &&
-                            failedCount.toDouble() == 0
+                    value: passedCount == 0 && failedCount == 0
                         ? 1
                         : passedCount.toDouble(),
                     color: Colors.greenAccent,
-                    title: 'Pass',
-                    radius: 40,
+                    title: passedCount > 0
+                        ? 'Pass'
+                        : '', // Only show label if > 0
+                    radius: 50,
                   ),
                   PieChartSectionData(
                     value: failedCount.toDouble(),
                     color: Colors.redAccent,
-                    title: 'Fail',
-                    radius: 40,
+                    title: failedCount > 0 ? 'Fail' : '',
+                    radius: 50,
                   ),
                 ],
               ),
@@ -510,9 +554,11 @@ class _AdminViewState extends State<AdminView> {
   }
 
   Widget _buildRegisteredStudentsSection() {
-    final rows = _registeredData.length > 1
-        ? _registeredData.skip(1).toList()
-        : [];
+    // Filter out empty rows and the header
+    final rows = _registeredData
+        .where((r) => r.isNotEmpty && r[0].toString().toLowerCase() != 'matric')
+        .toList();
+
     return Container(
       padding: const EdgeInsets.all(24),
       margin: const EdgeInsets.only(top: 32),
@@ -523,53 +569,82 @@ class _AdminViewState extends State<AdminView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Registered Students Registry",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "Registered Students Registry",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                "${rows.length} Students Total",
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
           ),
           const SizedBox(height: 15),
           if (rows.isEmpty)
-            const Text(
-              "No students in registry file.",
-              style: TextStyle(color: Colors.grey),
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Text(
+                  "No students registered. Use 'Bulk Student Upload' to add them.",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
             )
           else
-            Table(
-              border: TableBorder.symmetric(
-                inside: const BorderSide(color: Colors.white12),
-              ),
-              children: rows
-                  .map(
-                    (r) => TableRow(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Text(
-                            r[0].toString(),
-                            style: const TextStyle(color: Colors.white),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: rows.length,
+              itemBuilder: (context, index) {
+                final r = rows[index];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.person,
+                        color: Colors.blueAccent,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          r[0].toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Text(
-                            "${r[1]} ${r[2]}",
-                            style: const TextStyle(color: Colors.grey),
-                          ),
+                      ),
+                      Expanded(
+                        flex: 3,
+                        child: Text(
+                          "${r[1]} ${r[2]}",
+                          style: const TextStyle(color: Colors.grey),
                         ),
-                      ],
-                    ),
-                  )
-                  .toList(),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
         ],
       ),
     );
   }
-
   // --- DIALOGS ---
 
   void _showConfigDialog() {
@@ -733,6 +808,12 @@ class _AdminViewState extends State<AdminView> {
             onTap: _importWordDocument,
           ),
           _sidebarItem(
+            Icons.group_add,
+            "Bulk Student Upload",
+            false,
+            onTap: _importRegistry,
+          ),
+          _sidebarItem(
             Icons.picture_as_pdf,
             "Final Report",
             false,
@@ -821,7 +902,8 @@ class _AdminViewState extends State<AdminView> {
                     children: [
                       _statCard(
                         "Registered",
-                        "${_registeredData.length > 1 ? _registeredData.length - 1 : 0}",
+                        // Counts only data rows, excluding the header
+                        "${_registeredData.where((r) => r.isNotEmpty && r[0].toString().toLowerCase() != 'matric').length}",
                         Icons.people,
                         Colors.blue,
                       ),
@@ -842,6 +924,13 @@ class _AdminViewState extends State<AdminView> {
                         "$_totalQuestionsAvailable",
                         Icons.library_books,
                         Colors.orange,
+                      ),
+
+                      _statCard(
+                        "Submission Status",
+                        _submissionStatus, // Use the variable here
+                        Icons.check_circle,
+                        Colors.green,
                       ),
                     ],
                   ),

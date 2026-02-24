@@ -21,15 +21,19 @@ class ResultStorageService {
     try {
       final csvString = await file.readAsString();
       final fields = const CsvToListConverter().convert(csvString);
-      final dataRows = fields.where((row) => row.isNotEmpty && row[0] != 'Timestamp').toList();
-      if (dataRows.isEmpty) return ResultStats();
+
+      // BETTER FILTERING: Skip the first row (header) and empty rows
+      if (fields.length <= 1) return ResultStats();
+      final dataRows = fields
+          .skip(1)
+          .where((row) => row.isNotEmpty && row.length >= 5)
+          .toList();
 
       int passCount = 0;
       int failCount = 0;
       double totalScore = 0;
 
       for (var row in dataRows) {
-        if (row.length < 5) continue;
         final scoreValue = double.tryParse(row[4].toString()) ?? 0.0;
         totalScore += scoreValue;
         if (scoreValue >= 50.0) {
@@ -41,7 +45,8 @@ class ResultStorageService {
       return ResultStats(
         passed: passCount,
         failed: failCount,
-        avgScore: (totalScore / dataRows.length) / 100,
+        avgScore:
+            totalScore / dataRows.length, // Keep as raw percentage (e.g. 75.0)
       );
     } catch (e) {
       return ResultStats();
@@ -54,14 +59,18 @@ class ResultStorageService {
     try {
       final csvString = await file.readAsString();
       final rows = const CsvToListConverter().convert(csvString);
-      final dataRows = rows.where((row) => row.isNotEmpty && row[0] != 'Timestamp').toList();
+
+      // SKIP index 0 (The Header)
+      if (rows.length <= 1) return [];
+      final dataRows = rows.skip(1).where((row) => row.isNotEmpty).toList();
+
       return dataRows.map((row) {
         return {
-          'date': row.length > 0 ? row[0].toString() : "N/A",
-          'matric': row.length > 1 ? row[1].toString() : "N/A",
-          'surname': row.length > 2 ? row[2].toString() : "N/A",
-          'firstname': row.length > 3 ? row[3].toString() : "N/A",
-          'score': row.length > 4 ? row[4].toString() : "0",
+          'date': row[0].toString(),
+          'matric': row[1].toString(),
+          'surname': row[2].toString(),
+          'firstname': row[3].toString(),
+          'score': row[4].toString(),
         };
       }).toList();
     } catch (e) {
@@ -91,7 +100,7 @@ class ResultStorageService {
                 r['matric'],
                 "${r['surname']} ${r['firstname']}",
                 r['score'],
-                score >= 50 ? "PASS" : "FAIL"
+                score >= 50 ? "PASS" : "FAIL",
               ];
             }),
             headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
@@ -102,7 +111,9 @@ class ResultStorageService {
       ),
     );
 
-    await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+    );
   }
 
   Future<void> clearAllResults() async {
