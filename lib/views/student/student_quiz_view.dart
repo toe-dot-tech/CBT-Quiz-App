@@ -37,15 +37,30 @@ class _StudentQuizViewState extends ConsumerState<StudentQuizView> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text("Confirm Submission"),
-        content: const Text("Are you sure you want to end your exam? This action cannot be undone."),
+        content: const Text(
+          "Are you sure you want to end your exam? This action cannot be undone.",
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCEL")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("CANCEL"),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             onPressed: () async {
+              // Show a loading indicator so the student doesn't click twice
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) =>
+                    const Center(child: CircularProgressIndicator()),
+              );
+
               await ref.read(quizProvider.notifier).submitQuiz();
+
               if (!mounted) return;
-              Navigator.pop(context);
+              Navigator.pop(context); // Close loading indicator
+              Navigator.pop(context); // Close confirmation dialog
               _showSuccessDialog();
             },
             child: const Text("SUBMIT"),
@@ -80,7 +95,7 @@ class _StudentQuizViewState extends ConsumerState<StudentQuizView> {
   Widget build(BuildContext context) {
     final state = ref.watch(quizProvider);
     final notifier = ref.read(quizProvider.notifier);
-    
+
     // Ensure we have questions loaded
     if (state.questions.isEmpty) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -106,7 +121,10 @@ class _StudentQuizViewState extends ConsumerState<StudentQuizView> {
             child: Center(
               child: Text(
                 notifier.timerText,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -127,12 +145,19 @@ class _StudentQuizViewState extends ConsumerState<StudentQuizView> {
                 children: [
                   Text(
                     "Question ${state.currentQuestionIndex + 1} of ${state.questions.length}",
-                    style: TextStyle(color: Colors.indigo[700], fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: Colors.indigo[700],
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     currentQ['text'] ?? '',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
                   ),
                   const SizedBox(height: 32),
                   _buildAnswerArea(type, currentQ, state, notifier),
@@ -149,10 +174,12 @@ class _StudentQuizViewState extends ConsumerState<StudentQuizView> {
   Widget _buildAnswerArea(String type, Map q, dynamic state, dynamic notifier) {
     if (type == 'GERMAN') {
       // Sync controller with state for back/forward navigation
-      _germanController.text = state.selectedAnswers[state.currentQuestionIndex] ?? '';
+      _germanController.text =
+          state.selectedAnswers[state.currentQuestionIndex] ?? '';
       return TextField(
         controller: _germanController,
-        onChanged: (val) => notifier.selectAnswer(state.currentQuestionIndex, val),
+        onChanged: (val) =>
+            notifier.selectAnswer(state.currentQuestionIndex, val),
         decoration: InputDecoration(
           labelText: "Type your answer",
           border: const OutlineInputBorder(),
@@ -181,18 +208,25 @@ class _StudentQuizViewState extends ConsumerState<StudentQuizView> {
           if (optText.isEmpty) return const SizedBox.shrink();
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
-            elevation: state.selectedAnswers[state.currentQuestionIndex] == letter ? 2 : 0,
+            elevation:
+                state.selectedAnswers[state.currentQuestionIndex] == letter
+                ? 2
+                : 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
               side: BorderSide(
-                color: state.selectedAnswers[state.currentQuestionIndex] == letter ? Colors.indigo : Colors.grey[300]!,
+                color:
+                    state.selectedAnswers[state.currentQuestionIndex] == letter
+                    ? Colors.indigo
+                    : Colors.grey[300]!,
               ),
             ),
             child: RadioListTile<String>(
               title: Text(optText),
               value: letter,
               groupValue: state.selectedAnswers[state.currentQuestionIndex],
-              onChanged: (val) => notifier.selectAnswer(state.currentQuestionIndex, val!),
+              onChanged: (val) =>
+                  notifier.selectAnswer(state.currentQuestionIndex, val!),
             ),
           );
         }).toList(),
@@ -203,17 +237,26 @@ class _StudentQuizViewState extends ConsumerState<StudentQuizView> {
   Widget _buildNavigationFooter(dynamic state, dynamic notifier) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)]),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           if (state.currentQuestionIndex > 0)
-            OutlinedButton(onPressed: notifier.prevQuestion, child: const Text("PREVIOUS"))
+            OutlinedButton(
+              onPressed: notifier.prevQuestion,
+              child: const Text("PREVIOUS"),
+            )
           else
             const SizedBox(),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: (state.currentQuestionIndex == state.questions.length - 1) ? Colors.green : Colors.indigo,
+              backgroundColor:
+                  (state.currentQuestionIndex == state.questions.length - 1)
+                  ? Colors.green
+                  : Colors.indigo,
               foregroundColor: Colors.white,
             ),
             onPressed: () {
@@ -224,7 +267,11 @@ class _StudentQuizViewState extends ConsumerState<StudentQuizView> {
                 _handleFinish(context, ref);
               }
             },
-            child: Text((state.currentQuestionIndex == state.questions.length - 1) ? "FINISH" : "NEXT"),
+            child: Text(
+              (state.currentQuestionIndex == state.questions.length - 1)
+                  ? "FINISH"
+                  : "NEXT",
+            ),
           ),
         ],
       ),

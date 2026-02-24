@@ -48,8 +48,22 @@ class _AdminViewState extends State<AdminView> {
   @override
   void initState() {
     super.initState();
+
+    // Existing timer
     _refreshTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       _loadStats();
+    });
+
+    // 2. THE FIX: Listen to the server stream.
+    // Every time a student's status changes (like becoming "FINISHED ✅"),
+    // trigger a stats reload immediately.
+    QuizServer().studentStream.listen((clients) {
+      if (mounted) {
+        // Small delay to let the CSV file finish writing to the hard drive
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _loadStats();
+        });
+      }
     });
     _attemptLoadExistingRegistry();
     _refreshQuestionBank();
@@ -78,10 +92,10 @@ class _AdminViewState extends State<AdminView> {
     int finishedCount = 0;
     if (await resultsFile.exists()) {
       final lines = await resultsFile.readAsLines();
-      finishedCount = lines.length > 1 ? lines.length - 1 : 0;
+      // Only count lines that actually have data
+      finishedCount = lines.where((l) => l.trim().isNotEmpty).length - 1;
     }
 
-    // Calculate the total registered (excluding header)
     int regCount = _registeredData
         .where((r) => r.isNotEmpty && r[0].toString().toLowerCase() != 'matric')
         .length;
@@ -90,8 +104,9 @@ class _AdminViewState extends State<AdminView> {
       setState(() {
         passedCount = stats.passed;
         failedCount = stats.failed;
-        // This line will no longer throw an error!
-        _submissionStatus = "$finishedCount / $regCount";
+        // This is the variable the StatCard looks at
+        _submissionStatus =
+            "${finishedCount < 0 ? 0 : finishedCount} / $regCount";
         avgScore = "${stats.avgScore.toStringAsFixed(1)}%";
       });
     }
@@ -116,11 +131,15 @@ class _AdminViewState extends State<AdminView> {
 
         setState(() {
           _uploadedQuestions = allRows;
-          // If the first row is "Type,Text...", we count everything else.
-          if (allRows.isNotEmpty && allRows[0][0] == "Type") {
-            _totalQuestionsAvailable = allRows.length;
+          if (allRows.isNotEmpty) {
+            // If first row is the header, count total minus 1
+            if (allRows[0][0].toString().toLowerCase() == 'type') {
+              _totalQuestionsAvailable = allRows.length - 1;
+            } else {
+              _totalQuestionsAvailable = allRows.length;
+            }
           } else {
-            _totalQuestionsAvailable = allRows.length;
+            _totalQuestionsAvailable = 0;
           }
         });
       }
@@ -300,36 +319,49 @@ class _AdminViewState extends State<AdminView> {
 
   Widget _statCard(String title, String val, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withOpacity(0.3), width: 1),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.start, // Align to left
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           CircleAvatar(
+            radius: 20,
             backgroundColor: color.withOpacity(0.1),
-            child: Icon(icon, color: color),
+            child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 15),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                val,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+          const SizedBox(width: 12),
+          Expanded(
+            // Use Expanded to prevent text overflow
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min, // Fixes the "blank space" issue
+              children: [
+                Text(
+                  val,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18, // Slightly smaller to fit in the card
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Text(
-                title,
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 11,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -344,34 +376,72 @@ class _AdminViewState extends State<AdminView> {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            "Pass vs Fail Distribution",
+            "Exam Performance",
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 30),
           SizedBox(
-            height: 150,
-            child: PieChart(
-              PieChartData(
-                sections: [
-                  PieChartSectionData(
-                    value: passedCount == 0 && failedCount == 0
-                        ? 1
-                        : passedCount.toDouble(),
-                    color: Colors.greenAccent,
-                    title: passedCount > 0
-                        ? 'Pass'
-                        : '', // Only show label if > 0
-                    radius: 50,
+            height: 180,
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: (passedCount + failedCount == 0)
+                    ? 10
+                    : (passedCount + failedCount + 2).toDouble(),
+                barGroups: [
+                  BarChartGroupData(
+                    x: 0,
+                    barRods: [
+                      BarChartRodData(
+                        toY: passedCount.toDouble(),
+                        color: Colors.greenAccent,
+                        width: 30,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ],
                   ),
-                  PieChartSectionData(
-                    value: failedCount.toDouble(),
-                    color: Colors.redAccent,
-                    title: failedCount > 0 ? 'Fail' : '',
-                    radius: 50,
+                  BarChartGroupData(
+                    x: 1,
+                    barRods: [
+                      BarChartRodData(
+                        toY: failedCount.toDouble(),
+                        color: Colors.redAccent,
+                        width: 30,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ],
                   ),
                 ],
+                titlesData: FlTitlesData(
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: true, reservedSize: 30),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          value == 0 ? "PASS" : "FAIL",
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+                gridData: const FlGridData(show: false),
+                borderData: FlBorderData(show: false),
               ),
             ),
           ),
@@ -401,23 +471,40 @@ class _AdminViewState extends State<AdminView> {
           const SizedBox(height: 15),
           SizedBox(
             height: 200,
-            child: ListView.builder(
-              itemCount: QuizServer.connectedClients.length,
-              itemBuilder: (ctx, i) {
-                final client = QuizServer.connectedClients[i];
-                return ListTile(
-                  leading: const Icon(
-                    Icons.person_pin,
-                    color: Colors.greenAccent,
-                  ),
-                  title: Text(
-                    client,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                  ),
-                  subtitle: const Text(
-                    "Currently active",
-                    style: TextStyle(color: Colors.grey, fontSize: 11),
-                  ),
+            child: StreamBuilder<List<String>>(
+              stream:
+                  QuizServer().studentStream, // LISTEN TO THE SERVER DIRECTLY
+              initialData: QuizServer.connectedClients,
+              builder: (context, snapshot) {
+                final clients = snapshot.data ?? [];
+                if (clients.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      "No active students",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  itemCount: clients.length,
+                  itemBuilder: (ctx, i) {
+                    bool isFinished = clients[i].contains("FINISHED");
+                    return ListTile(
+                      leading: Icon(
+                        isFinished ? Icons.check_circle : Icons.person_pin,
+                        color: isFinished
+                            ? Colors.greenAccent
+                            : Colors.blueAccent,
+                      ),
+                      title: Text(
+                        clients[i],
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -432,16 +519,13 @@ class _AdminViewState extends State<AdminView> {
     List<List<dynamic>> displayList = [];
 
     if (_uploadedQuestions.isNotEmpty) {
-      // Check if the very first row is the CSV Header
-      if (_uploadedQuestions[0][0].toString().toLowerCase() == 'type') {
-        // It's a header, so we take everything AFTER it
-        displayList = _uploadedQuestions.skip(1).toList();
+      // Correct Dart way: lowercase the string and compare
+      if (_uploadedQuestions[0][0].toString().toLowerCase() == "type") {
+        displayList = _uploadedQuestions.sublist(1);
       } else {
-        // No header found, show the list exactly as it is (including index 0)
         displayList = _uploadedQuestions;
       }
     }
-
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -898,7 +982,8 @@ class _AdminViewState extends State<AdminView> {
                     shrinkWrap: true,
                     crossAxisSpacing: 20,
                     mainAxisSpacing: 20,
-                    childAspectRatio: 3,
+                    childAspectRatio:
+                        2.2, // Changed from 3 to 2.2 to give more height
                     children: [
                       _statCard(
                         "Registered",

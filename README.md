@@ -124,7 +124,7 @@ assets/
 
 ## 🤝 Contribution
 
-Developed by **Toe Tech**. Feel free to fork this repo and submit pull requests.
+Developed by **TOE Tech**. Feel free to fork this repo and submit pull requests.
 
 ---
 

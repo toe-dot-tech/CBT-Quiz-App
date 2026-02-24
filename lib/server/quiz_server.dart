@@ -195,6 +195,8 @@ class QuizServer {
     if (!await file.exists()) {
       await file.writeAsString("Timestamp,Matric,Surname,Firstname,Score\n");
     }
+
+    // Ensure the keys match exactly what the student app sends
     final row = [
       DateTime.now().toIso8601String(),
       data['matric'],
@@ -202,8 +204,12 @@ class QuizServer {
       data['firstname'] ?? 'N/A',
       data['score'],
     ];
+
     String csvRow = "${const ListToCsvConverter().convert([row])}\n";
     await file.writeAsString(csvRow, mode: FileMode.append, flush: true);
+
+    // LOG THIS TO TERMINAL so you can see it working
+    print("✅ DATA SAVED TO CSV: ${data['matric']} scored ${data['score']}");
   }
 
   Future<String> _getNetworkIp() async {

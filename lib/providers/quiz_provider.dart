@@ -1,13 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 
 class QuizState {
   final List<Map<String, dynamic>> questions; // Added: Dynamic pool
-  final String courseTitle;                   // Added: From Admin
+  final String courseTitle; // Added: From Admin
   final int seconds;
   final bool isUrgent;
   final int currentQuestionIndex;
-  final Map<int, dynamic> selectedAnswers;    // Changed to dynamic to support String answers
+  final Map<int, dynamic>
+  selectedAnswers; // Changed to dynamic to support String answers
   final bool isQuizStarted;
   final bool isSubmitted;
   final String? studentMatric;
@@ -76,7 +79,7 @@ class QuizNotifier extends StateNotifier<QuizState> {
       currentQuestionIndex: 0,
       selectedAnswers: {},
     );
-    
+
     _startTimer();
   }
 
@@ -103,13 +106,17 @@ class QuizNotifier extends StateNotifier<QuizState> {
 
   void nextQuestion() {
     if (state.currentQuestionIndex < state.questions.length - 1) {
-      state = state.copyWith(currentQuestionIndex: state.currentQuestionIndex + 1);
+      state = state.copyWith(
+        currentQuestionIndex: state.currentQuestionIndex + 1,
+      );
     }
   }
 
   void prevQuestion() {
     if (state.currentQuestionIndex > 0) {
-      state = state.copyWith(currentQuestionIndex: state.currentQuestionIndex - 1);
+      state = state.copyWith(
+        currentQuestionIndex: state.currentQuestionIndex - 1,
+      );
     }
   }
 
@@ -121,15 +128,55 @@ class QuizNotifier extends StateNotifier<QuizState> {
 
   Future<void> submitQuiz() async {
     _timer?.cancel();
-    state = state.copyWith(isSubmitted: true, isQuizStarted: false);
-    // TODO: Implement actual http POST to /api/submit here
-  }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
+    // 1. Calculate Score
+    int correctCount = 0;
+    for (int i = 0; i < state.questions.length; i++) {
+      final correctAnswer = state.questions[i]['answer']
+          ?.toString()
+          .trim()
+          .toUpperCase();
+      final studentAnswer = state.selectedAnswers[i]
+          ?.toString()
+          .trim()
+          .toUpperCase();
+
+      if (correctAnswer != null && studentAnswer == correctAnswer) {
+        correctCount++;
+      }
+    }
+
+    double finalScore = (correctCount / state.questions.length) * 100;
+
+    // 2. Prepare Payload
+    // Split full name back into Surname and Firstname if possible
+    String surname = state.studentName?.split(' ').first ?? "Unknown";
+    String firstname = state.studentName?.contains(' ') == true
+        ? state.studentName!.split(' ').sublist(1).join(' ')
+        : "Student";
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://${Uri.base.host}:8080/api/submit'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'matric': state.studentMatric,
+          'surname': surname,
+          'firstname': firstname,
+          'score': finalScore.toStringAsFixed(1), // Sends "85.5"
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        state = state.copyWith(isSubmitted: true, isQuizStarted: false);
+        print("✅ Exam successfully uploaded to server.");
+      }
+    } catch (e) {
+      print("❌ Submission failed: $e");
+    }
   }
 }
 
-final quizProvider = StateNotifierProvider<QuizNotifier, QuizState>((ref) => QuizNotifier());
+final quizProvider = StateNotifierProvider<QuizNotifier, QuizState>(
+  (ref) => QuizNotifier(),
+);

@@ -52,3 +52,6 @@ app.*.map.json
 .dart_tool/
 build/
 .flutter-plugins
+/assets/web/
+.dart_tool/
+.packages

@@ -18,35 +18,37 @@ class ResultStorageService {
   Future<ResultStats> calculateLiveStats() async {
     final file = File(fileName);
     if (!await file.exists()) return ResultStats();
+
     try {
+      // Read the file from scratch every time
       final csvString = await file.readAsString();
       final fields = const CsvToListConverter().convert(csvString);
 
-      // BETTER FILTERING: Skip the first row (header) and empty rows
-      if (fields.length <= 1) return ResultStats();
+      // Skip header and empty rows
       final dataRows = fields
           .skip(1)
           .where((row) => row.isNotEmpty && row.length >= 5)
           .toList();
 
-      int passCount = 0;
-      int failCount = 0;
-      double totalScore = 0;
+      if (dataRows.isEmpty) return ResultStats();
+
+      int pass = 0;
+      int fail = 0;
+      double total = 0;
 
       for (var row in dataRows) {
-        final scoreValue = double.tryParse(row[4].toString()) ?? 0.0;
-        totalScore += scoreValue;
-        if (scoreValue >= 50.0) {
-          passCount++;
-        } else {
-          failCount++;
-        }
+        double score = double.tryParse(row[4].toString()) ?? 0.0;
+        total += score;
+        if (score >= 50.0)
+          pass++;
+        else
+          fail++;
       }
+
       return ResultStats(
-        passed: passCount,
-        failed: failCount,
-        avgScore:
-            totalScore / dataRows.length, // Keep as raw percentage (e.g. 75.0)
+        passed: pass,
+        failed: fail,
+        avgScore: total / dataRows.length, // Raw percentage
       );
     } catch (e) {
       return ResultStats();
