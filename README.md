@@ -1,6 +1,5 @@
-Since you have built a sophisticated Flutter CBT system with a custom Dart server and a Word-to-CSV transformer, your README needs to reflect that technical complexity.
 
-Here is a comprehensive, professional `README.md` file tailored for your **CBT-Quiz-Software**.
+.
 
 ---
 
